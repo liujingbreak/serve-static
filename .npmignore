@@ -1,0 +1,5 @@
+/ts/**/*.ts
+/test
+*.tgz
+.*
+/tsconfig.json

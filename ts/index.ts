@@ -1,51 +1,40 @@
-/*!
- * serve-static
- * Copyright(c) 2010 Sencha Inc.
- * Copyright(c) 2011 TJ Holowaychuk
- * Copyright(c) 2014-2016 Douglas Christopher Wilson
- * MIT Licensed
- */
-
-'use strict'
-
+/// <reference path="../lib.d.ts"/>
 /**
  * Module dependencies.
  * @private
  */
 
-var encodeUrl = require('encodeurl')
-var escapeHtml = require('escape-html')
-var parseUrl = require('parseurl')
-var resolve = require('path').resolve
-var send = require('send')
-var url = require('url')
-
+var encodeUrl = require('encodeurl');
+var escapeHtml = require('escape-html');
+var parseUrl = require('parseurl');
+// var resolve = require('path').resolve;
+import url from 'url';
+import serveStaticModule from 'serve-static';
+import zip from 'zip';
+import {Request, Response, NextFunction, Handler} from 'express';
+import _ from 'lodash';
+import {CacheEntry} from './common';
+import Sender, {mime as mime0} from './send-buf';
 /**
  * Module exports.
  * @public
  */
 
-module.exports = serveStatic
-module.exports.mime = send.mime
+export = serveStatic;
+// module.exports.mime = send.mime
 
 /**
- * @param {string} root
+ * @param {string} root default root path in extracted zip file structure
  * @param {object} [options]
  * @return {function}
  * @public
  */
 
-function serveStatic (root, options) {
-  if (!root) {
-    throw new TypeError('root path required')
-  }
-
-  if (typeof root !== 'string') {
-    throw new TypeError('root path must be a string')
-  }
+function serveStatic (root = '', options?: serveStaticModule.ServeStaticOptions): ZipMiddleware {
+  root = _.trimStart(root, '/');
 
   // copy options object
-  var opts = Object.create(options || null)
+  const opts: serveStaticModule.ServeStaticOptions & {root: string} = Object.create(options || null)
 
   // fall-though
   var fallthrough = opts.fallthrough !== false
@@ -61,18 +50,23 @@ function serveStatic (root, options) {
   }
 
   // setup options for send
-  opts.maxage = opts.maxage || opts.maxAge || 0
-  opts.root = resolve(root)
+  if (opts.maxAge == null)
+    opts.maxAge = 0;
+  // opts.maxage = opts.maxage || opts.maxAge || 0
+  opts.root = root;
 
   // construct directory listener
   var onDirectory = redirect
     ? createRedirectDirectoryListener()
-    : createNotFoundDirectoryListener()
-
-  return function serveStatic (req, res, next) {
+  : createNotFoundDirectoryListener()
+  
+  const m = new ZipMiddleware();
+  m.handler = handler;
+  
+  function handler (req: Request, res: Response, next: NextFunction) {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       if (fallthrough) {
-        return next()
+        return next();
       }
 
       // method not allowed
@@ -91,9 +85,17 @@ function serveStatic (root, options) {
     if (path === '/' && originalUrl.pathname.substr(-1) !== '/') {
       path = ''
     }
+    // const entry = m.cache.get(_.trimStart(path, '/'));
+    // if (entry == null) {
+    //   return next();
+    // }
+    // res.setHeader('Content-Length', entry.data.byteLength);
+    // res.type(Path.extname(entry.name));
+    // res.end(entry.data);
+    const stream = new Sender(req, path, m.cache, opts);
 
-    // create send stream
-    var stream = send(req, path, opts)
+    // // create send stream
+    // var stream = send(req, path, opts)
 
     // add directory handler
     stream.on('directory', onDirectory)
@@ -112,7 +114,7 @@ function serveStatic (root, options) {
     }
 
     // forward errors
-    stream.on('error', function error (err) {
+    stream.on('error', function error (err: any) {
       if (forwardError || !(err.statusCode < 500)) {
         next(err)
         return
@@ -124,13 +126,52 @@ function serveStatic (root, options) {
     // pipe
     stream.pipe(res)
   }
+  return m;
 }
+
+class ZipMiddleware {
+  handler: Handler;
+
+  cache = new Map<string, CacheEntry>();
+
+  updateZip(buf: Buffer, root = '') {
+    if (!root.endsWith('/'))
+      root = root + '/';
+    // this.cache.clear();
+    const reader = zip.Reader(buf);
+    reader.forEach(entry => {
+      const normalEntryPath = entry.getName().replace(/\\/g, '/');
+      let entryPath: string;
+      // if (entry.isDirectory())
+      //   return;
+      if (!normalEntryPath.startsWith('/'))
+        entryPath = '/' + normalEntryPath;
+      if (!root || entryPath.startsWith(root)) {
+        this.cache.set(entryPath.substring(root.length), {
+          data: entry.getData(),
+          lastModified: entry.lastModified(),
+          name: normalEntryPath,
+          isDirectory: entry.isDirectory()
+        });
+        console.log('[serve-static-zip] zip entry name: ', entry.getName());
+      }
+    });
+  }
+}
+
+namespace serveStatic {
+  export const mime = mime0;
+  export type Entry = CacheEntry;
+  export type ZipResourceMiddleware = ZipMiddleware;
+}
+
+
 
 /**
  * Collapse all leading slashes into a single slash
  * @private
  */
-function collapseLeadingSlashes (str) {
+function collapseLeadingSlashes (str: string) {
   for (var i = 0; i < str.length; i++) {
     if (str.charCodeAt(i) !== 0x2f /* / */) {
       break
@@ -150,7 +191,7 @@ function collapseLeadingSlashes (str) {
  * @private
  */
 
-function createHtmlDocument (title, body) {
+function createHtmlDocument (title: string, body: string) {
   return '<!DOCTYPE html>\n' +
     '<html lang="en">\n' +
     '<head>\n' +
@@ -180,7 +221,7 @@ function createNotFoundDirectoryListener () {
  */
 
 function createRedirectDirectoryListener () {
-  return function redirect (res) {
+  return function redirect (res: Response) {
     if (this.hasTrailingSlash()) {
       this.error(404)
       return
