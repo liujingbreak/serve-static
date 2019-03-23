@@ -38,8 +38,12 @@ const serveZip = createServeZip({
 });
 expressApp.use('/', serveZip.handler);
 
-// later some time, you can update resource by new zip buffer
+// later some time, you can update resource with new zip buffer
+// The file comes from new zip buffer will overwrite the old one which has same path
 serveZip.updateZip(zipFileBuffer);
+
+// To clean up old files in memory
+serveZip.cache.clear();
 ```
 
 
