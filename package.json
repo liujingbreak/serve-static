@@ -1,7 +1,7 @@
 {
   "name": "serve-static-zip",
   "description": "Serve static files",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "liujing.break@163.com",
   "license": "MIT",
   "repository": "https://github.com/liujingbreak/serve-static-zip",
