@@ -1,11 +1,5 @@
 # serve-static-zip
 
-<!-- [![NPM Version][npm-image]][npm-url]
-[![NPM Downloads][downloads-image]][downloads-url]
-[![Linux Build][travis-image]][travis-url]
-[![Windows Build][appveyor-image]][appveyor-url]
-[![Test Coverage][coveralls-image]][coveralls-url] -->
-
 ## Install
 
 This is a [Node.js](https://nodejs.org/en/) module available through the
@@ -16,6 +10,7 @@ Consider comparing to use `serve-static` in express appliaction, this package is
 serving static resource file from a zip file buffer in memory, while `serve-static` 
 serves static resource files from a local directory.
 
+> Be aware that, unlike `server-static` this package does not support response with [Content-Range](https://devdocs.io/http/headers/content-range) header yet, I am working on it!
 
 ```sh
 $ npm install serve-static-zip
